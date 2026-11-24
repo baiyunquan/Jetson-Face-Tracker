@@ -23,7 +23,7 @@ from web.app import app, init_system
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Jetson Face Tracker Server")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Binding IP address (default 0.0.0.0)")
-    parser.add_argument("--port", type=int, default=8000, help="HTTP port (default 8000)")
+    parser.add_argument("--port", type=int, default=8080, help="HTTP port (default 8080)")
     args = parser.parse_args()
 
     print("=" * 68)
@@ -35,4 +35,4 @@ if __name__ == "__main__":
     print("=" * 68)
 
     init_system()
-    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info", ws="none")
