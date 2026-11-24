@@ -12,6 +12,7 @@ Provides:
 import os
 import sys
 import time
+import asyncio
 from typing import Optional
 from pydantic import BaseModel
 
@@ -106,16 +107,18 @@ def index_page():
 
 
 @app.get("/video_feed")
-def video_feed():
+async def video_feed():
     """MJPEG streaming endpoint with boundary multipart/x-mixed-replace."""
-    def frame_generator():
+    async def frame_generator():
+        last_id = None
         while True:
             if tracker is not None:
                 jpeg_bytes = tracker.get_latest_frame_jpeg()
-                if jpeg_bytes is not None:
+                if jpeg_bytes is not None and id(jpeg_bytes) != last_id:
+                    last_id = id(jpeg_bytes)
                     yield (b'--frame\r\n'
                            b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n')
-            time.sleep(0.03)
+            await asyncio.sleep(0.033)
 
     return StreamingResponse(
         frame_generator(),

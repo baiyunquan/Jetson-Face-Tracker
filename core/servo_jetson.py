@@ -54,6 +54,7 @@ class SysfsPWMChannel:
         self.ch_dir = os.path.join(chip_path, f"pwm{channel}")
         self.enabled = False
         self.mock = not os.path.exists(chip_path)
+        self.last_duty_ns = None
 
         if not self.mock:
             if not os.path.exists(self.ch_dir):
@@ -87,7 +88,9 @@ class SysfsPWMChannel:
         us = self.pulse_min_us + (self.pulse_max_us - self.pulse_min_us) * (deg / 180.0)
         duty_ns = int(round(us * 1000.0))
         if not self.mock:
-            self._write("duty_cycle", duty_ns)
+            if self.last_duty_ns is None or abs(duty_ns - self.last_duty_ns) > 50:
+                self._write("duty_cycle", duty_ns)
+                self.last_duty_ns = duty_ns
             if not self.enabled:
                 self._write("enable", 1)
                 self.enabled = True
@@ -150,7 +153,7 @@ class ServoMover:
     def __init__(self,
                  pan_min=0.0, pan_max=180.0, pan_start=90.0,
                  tilt_min=45.0, tilt_max=135.0, tilt_start=90.0,
-                 speed_dps=180.0, accel_dps2=800.0, rate_hz=100):
+                 speed_dps=180.0, accel_dps2=800.0, rate_hz=50):
         fix_jetson_hardware_registers()
 
         chip_path = "/sys/class/pwm/pwmchip0"

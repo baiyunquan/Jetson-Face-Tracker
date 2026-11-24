@@ -84,22 +84,26 @@ class FaceTracker:
         self.recentered = True
 
     def _tracking_loop(self):
-        last_time = time.monotonic()
+        last_frame_id = -1
         frame_count = 0
         fps_start = time.monotonic()
 
         while self.running:
-            t_photo, frame = self.camera.read()
-            if frame is None:
-                time.sleep(0.01)
+            t_photo, frame, frame_id = self.camera.read(last_id=last_frame_id, timeout=0.04)
+            if frame_id == last_frame_id or frame is None:
                 continue
+            last_frame_id = frame_id
 
             h, w = frame.shape[:2]
             cx_screen, cy_screen = w // 2, h // 2
 
-            # Run face detector
-            faces = self.detector.detect(frame)
-            primary_face = self.detector.select_primary_face(faces)
+            # Run face detector only in auto mode to avoid wasting CPU in manual mode
+            if self.mode == "auto":
+                faces = self.detector.detect(frame)
+                primary_face = self.detector.select_primary_face(faces)
+            else:
+                faces = []
+                primary_face = None
 
             now = time.monotonic()
             frame_count += 1
@@ -145,9 +149,14 @@ class FaceTracker:
             # Render HUD overlay on frame
             if cv2 is not None:
                 self._draw_hud(frame, faces, primary_face, cx_screen, cy_screen)
+                ret, jpeg = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
+                jpeg_bytes = jpeg.tobytes() if ret else None
+            else:
+                jpeg_bytes = None
 
             with self.frame_lock:
                 self.annotated_frame = frame
+                self.latest_jpeg = jpeg_bytes
 
     def _draw_hud(self, frame, faces, primary_face, cx_screen, cy_screen):
         h, w = frame.shape[:2]
@@ -182,15 +191,9 @@ class FaceTracker:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.45, (220, 220, 220), 1, cv2.LINE_AA)
 
     def get_latest_frame_jpeg(self):
-        """Encodes annotated frame to JPEG for MJPEG streaming."""
+        """Returns pre-encoded JPEG bytes for low-latency MJPEG streaming."""
         with self.frame_lock:
-            if self.annotated_frame is None:
-                return None
-            if cv2 is not None:
-                ret, jpeg = cv2.imencode('.jpg', self.annotated_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
-                if ret:
-                    return jpeg.tobytes()
-        return None
+            return getattr(self, 'latest_jpeg', None)
 
     def get_status(self):
         pan_cur, tilt_cur, pan_tgt, tilt_tgt = self.servo.get_position()

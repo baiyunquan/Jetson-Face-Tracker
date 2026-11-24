@@ -31,7 +31,8 @@ class CameraStream:
         self.cap = None
         self.frame = None
         self.timestamp = time.monotonic()
-        self.lock = threading.Lock()
+        self.frame_id = 0
+        self.cond = threading.Condition()
         self.is_synthetic = False
 
         if cv2 is not None:
@@ -91,28 +92,34 @@ class CameraStream:
             if not self.is_synthetic and self.cap is not None:
                 ret, frame = self.cap.read()
                 if ret and frame is not None:
-                    with self.lock:
+                    with self.cond:
                         self.frame = frame
                         self.timestamp = now
+                        self.frame_id += 1
+                        self.cond.notify_all()
                 else:
                     time.sleep(0.01)
             else:
                 if cv2 is not None:
                     frame = self._generate_synthetic_frame(now)
-                    with self.lock:
+                    with self.cond:
                         self.frame = frame
                         self.timestamp = now
+                        self.frame_id += 1
+                        self.cond.notify_all()
                 time.sleep(1.0 / self.framerate)
 
-    def read(self):
-        """Returns (timestamp, frame)."""
-        with self.lock:
+    def read(self, last_id: int = None, timeout: float = 0.05):
+        """Returns (timestamp, frame, frame_id). Waits for new frame if last_id is provided."""
+        with self.cond:
+            if last_id is not None and self.frame_id == last_id and self.running:
+                self.cond.wait(timeout=timeout)
             if self.frame is not None:
-                return self.timestamp, self.frame.copy()
+                return self.timestamp, self.frame.copy(), self.frame_id
             else:
                 # Blank initial frame
                 dummy = np.zeros((self.output_h, self.output_w, 3), dtype=np.uint8)
-                return self.timestamp, dummy
+                return self.timestamp, dummy, 0
 
     def stop(self):
         self.running = False
