@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Jetson Face Tracker - 云台控制控制台</title>
+  <style>
+    :root {
+      --bg-dark: #0a0d14;
+      --bg-card: #121824;
+      --bg-panel: #182234;
+      --accent-cyan: #00e5ff;
+      --accent-green: #00e676;
+      --accent-amber: #ffab00;
+      --accent-red: #ff3d00;
+      --text-main: #f0f4f8;
+      --text-dim: #8ba2be;
+      --border-color: #24344d;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Top Bar */
+    header {
+      background-color: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-icon {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 10px var(--accent-cyan);
+    }
+    h1 {
+      font-size: 1.15rem;
+      letter-spacing: 1px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      background: rgba(0, 229, 255, 0.1);
+      border: 1px solid var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    /* Main Grid */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      padding: 16px;
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    @media (min-width: 900px) {
+      main {
+        grid-template-columns: 1.8fr 1fr;
+      }
+    }
+
+    /* Video Container */
+    .video-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .video-viewport {
+      position: relative;
+      background: #000;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .video-viewport img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .video-overlay-top {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+    .overlay-badge {
+      background: rgba(10, 13, 20, 0.75);
+      backdrop-filter: blur(4px);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .badge-auto {
+      color: var(--accent-green);
+      border-color: var(--accent-green);
+    }
+    .badge-manual {
+      color: var(--accent-amber);
+      border-color: var(--accent-amber);
+    }
+    .badge-locked {
+      color: var(--accent-red);
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.4; }
+      100% { opacity: 1; }
+    }
+
+    /* Telemetry Bar below video */
+    .telemetry-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-panel);
+      text-align: center;
+    }
+    .telemetry-item .label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .telemetry-item .value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      font-family: monospace;
+    }
+
+    /* Controls Column */
+    .controls-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Mode Switch */
+    .mode-switch-box {
+      display: flex;
+      background: var(--bg-panel);
+      border-radius: 8px;
+      padding: 4px;
+      border: 1px solid var(--border-color);
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .mode-btn.active {
+      background: var(--accent-cyan);
+      color: #000;
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
+    }
+
+    /* D-Pad Controller */
+    .dpad-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 10px 0;
+    }
+    .dpad-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 70px);
+      grid-template-rows: repeat(3, 70px);
+      gap: 8px;
+    }
+    .dpad-btn {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-size: 1.2rem;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: all 0.1s ease;
+    }
+    .dpad-btn:active, .dpad-btn.pressed {
+      background: var(--accent-cyan);
+      color: #000;
+      transform: scale(0.94);
+      box-shadow: 0 0 12px var(--accent-cyan);
+    }
+    .dpad-btn span {
+      font-size: 0.65rem;
+      margin-top: 2px;
+      color: var(--text-dim);
+    }
+    .dpad-btn:active span, .dpad-btn.pressed span {
+      color: #222;
+    }
+    .btn-center {
+      background: rgba(255, 171, 0, 0.15);
+      border-color: var(--accent-amber);
+      color: var(--accent-amber);
+    }
+
+    /* Sliders & Settings */
+    .slider-box {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+    input[type=range] {
+      accent-color: var(--accent-cyan);
+      width: 100%;
+      height: 6px;
+      background: var(--bg-panel);
+      border-radius: 3px;
+    }
+
+    /* Instructions & Shortcuts */
+    .shortcuts-box {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+    .shortcuts-box strong {
+      color: var(--text-main);
+    }
+    .key-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #233148;
+      border: 1px solid #3d5170;
+      font-family: monospace;
+      font-weight: bold;
+      color: var(--accent-cyan);
+      margin: 0 2px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-box">
+      <div class="logo-icon"></div>
+      <h1>JETSON ACTIVE VISION</h1>
+    </div>
+    <div class="status-badge" id="net-status">
+      ● 在线连接
+    </div>
+  </header>
+
+  <main>
+    <!-- Left: Video Stream -->
+    <div class="video-card">
+      <div class="video-viewport">
+        <img id="stream-img" src="/video_feed" alt="Camera Stream" />
+        <div class="video-overlay-top">
+          <div class="overlay-badge" id="badge-mode">模式: MANUAL</div>
+          <div class="overlay-badge" id="badge-lock">未锁定目标</div>
+        </div>
+      </div>
+      <div class="telemetry-row">
+        <div class="telemetry-item">
+          <div class="label">水平角度 (Pan 0-180°)</div>
+          <div class="value" id="val-pan">90.0°</div>
+        </div>
+        <div class="telemetry-item">
+          <div class="label">俯仰角度 (Tilt 45-135°)</div>
+          <div class="value" id="val-tilt">90.0°</div>
+        </div>
+        <div class="telemetry-item">
+          <div class="label">推理帧率 (FPS)</div>
+          <div class="value" id="val-fps">0.0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Control Panel -->
+    <div class="controls-card">
+      <!-- Mode Toggle -->
+      <div class="mode-switch-box">
+        <button class="mode-btn active" id="btn-mode-manual" onclick="setMode('manual')">🎮 手动模式</button>
+        <button class="mode-btn" id="btn-mode-auto" onclick="setMode('auto')">🎯 自动锁定人脸</button>
+      </div>
+
+      <!-- Virtual D-Pad -->
+      <div class="dpad-container">
+        <div class="dpad-grid">
+          <div></div>
+          <button class="dpad-btn" id="btn-up" data-pan="0" data-tilt="1">
+            ▲<span>W (仰)</span>
+          </button>
+          <div></div>
+
+          <button class="dpad-btn" id="btn-left" data-pan="1" data-tilt="0">
+            ◀<span>A (左)</span>
+          </button>
+          <button class="dpad-btn btn-center" id="btn-center" onclick="centerGimbal()">
+            ⌖<span>归中</span>
+          </button>
+          <button class="dpad-btn" id="btn-right" data-pan="-1" data-tilt="0">
+            ▶<span>D (右)</span>
+          </button>
+
+          <div></div>
+          <button class="dpad-btn" id="btn-down" data-pan="0" data-tilt="-1">
+            ▼<span>S (俯)</span>
+          </button>
+          <div></div>
+        </div>
+      </div>
+
+      <!-- Speed Control Slider -->
+      <div class="slider-box">
+        <div class="slider-header">
+          <span>手动旋转速度</span>
+          <span id="speed-label">60°/s</span>
+        </div>
+        <input type="range" id="speed-slider" min="20" max="120" value="60" oninput="updateSpeed(this.value)">
+      </div>
+
+      <!-- Shortcuts / Tips -->
+      <div class="shortcuts-box">
+        <strong>键盘快捷操作：</strong><br>
+        • 长按 <span class="key-badge">W</span> <span class="key-badge">S</span> 控制俯仰角度<br>
+        • 长按 <span class="key-badge">A</span> <span class="key-badge">D</span> 控制水平旋转 (松开即停)<br>
+        • 按 <span class="key-badge">Space</span> 快速回中 (90°, 90°)<br>
+        • 按 <span class="key-badge">M</span> 一键切换 手动/自动跟踪模式
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let currentMode = "manual";
+    let isJogging = false;
+    let activeKey = null;
+
+    // Mode Toggle
+    async function setMode(mode) {
+      try {
+        const res = await fetch('/api/mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: mode })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          currentMode = data.mode;
+          updateModeUI(currentMode);
+        }
+      } catch (e) {
+        console.error("Failed to set mode:", e);
+      }
+    }
+
+    function updateModeUI(mode) {
+      const btnManual = document.getElementById('btn-mode-manual');
+      const btnAuto = document.getElementById('btn-mode-auto');
+      const badgeMode = document.getElementById('badge-mode');
+
+      if (mode === 'auto') {
+        btnManual.classList.remove('active');
+        btnAuto.classList.add('active');
+        badgeMode.textContent = "模式: 自动锁定人脸";
+        badgeMode.className = "overlay-badge badge-auto";
+      } else {
+        btnAuto.classList.remove('active');
+        btnManual.classList.add('active');
+        badgeMode.textContent = "模式: 手动控制";
+        badgeMode.className = "overlay-badge badge-manual";
+      }
+    }
+
+    // Manual Jogging
+    async function sendMove(pan, tilt) {
+      if (currentMode !== 'manual') return;
+      try {
+        await fetch('/api/manual_move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pan: pan, tilt: tilt })
+        });
+      } catch (e) {
+        console.error("Jog error:", e);
+      }
+    }
+
+    async function centerGimbal() {
+      try {
+        await fetch('/api/center', { method: 'POST' });
+      } catch (e) {
+        console.error("Center error:", e);
+      }
+    }
+
+    async function updateSpeed(val) {
+      document.getElementById('speed-label').textContent = val + "°/s";
+      try {
+        await fetch('/api/speed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ speed: parseFloat(val) })
+        });
+      } catch (e) {}
+    }
+
+    // Attach Touch/Mouse to D-Pad buttons
+    ['btn-up', 'btn-down', 'btn-left', 'btn-right'].forEach(id => {
+      const btn = document.getElementById(id);
+      const pan = parseFloat(btn.getAttribute('data-pan'));
+      const tilt = parseFloat(btn.getAttribute('data-tilt'));
+
+      const startJog = (e) => {
+        e.preventDefault();
+        btn.classList.add('pressed');
+        isJogging = true;
+        sendMove(pan, tilt);
+      };
+
+      const stopJog = (e) => {
+        if (isJogging) {
+          btn.classList.remove('pressed');
+          isJogging = false;
+          sendMove(0, 0);
+        }
+      };
+
+      btn.addEventListener('mousedown', startJog);
+      btn.addEventListener('mouseup', stopJog);
+      btn.addEventListener('mouseleave', stopJog);
+      btn.addEventListener('touchstart', startJog, { passive: false });
+      btn.addEventListener('touchend', stopJog, { passive: false });
+      btn.addEventListener('touchcancel', stopJog, { passive: false });
+    });
+
+    // Keyboard Listeners
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
+      const key = e.key.toLowerCase();
+
+      if (key === 'm') {
+        setMode(currentMode === 'manual' ? 'auto' : 'manual');
+        return;
+      }
+      if (key === ' ') {
+        e.preventDefault();
+        centerGimbal();
+        return;
+      }
+
+      if (currentMode !== 'manual') return;
+
+      if (key === 'w' || key === 'arrowup') {
+        document.getElementById('btn-up').classList.add('pressed');
+        sendMove(0, 1);
+        activeKey = key;
+      } else if (key === 's' || key === 'arrowdown') {
+        document.getElementById('btn-down').classList.add('pressed');
+        sendMove(0, -1);
+        activeKey = key;
+      } else if (key === 'a' || key === 'arrowleft') {
+        document.getElementById('btn-left').classList.add('pressed');
+        sendMove(1, 0);
+        activeKey = key;
+      } else if (key === 'd' || key === 'arrowright') {
+        document.getElementById('btn-right').classList.add('pressed');
+        sendMove(-1, 0);
+        activeKey = key;
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const key = e.key.toLowerCase();
+      if (['w', 's', 'a', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+        ['btn-up', 'btn-down', 'btn-left', 'btn-right'].forEach(id => {
+          document.getElementById(id).classList.remove('pressed');
+        });
+        sendMove(0, 0);
+        activeKey = null;
+      }
+    });
+
+    // Telemetry Poller
+    setInterval(async () => {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        if (data.mode) {
+          document.getElementById('val-pan').textContent = data.pan.toFixed(1) + "°";
+          document.getElementById('val-tilt').textContent = data.tilt.toFixed(1) + "°";
+          document.getElementById('val-fps').textContent = data.fps.toFixed(1);
+
+          const badgeLock = document.getElementById('badge-lock');
+          if (data.target_locked) {
+            badgeLock.textContent = "● 已锁定目标";
+            badgeLock.className = "overlay-badge badge-locked";
+          } else {
+            badgeLock.textContent = "搜寻人脸中...";
+            badgeLock.className = "overlay-badge";
+          }
+
+          if (data.mode !== currentMode) {
+            currentMode = data.mode;
+            updateModeUI(currentMode);
+          }
+        }
+      } catch (e) {
+        document.getElementById('net-status').textContent = "○ 离线断开";
+        document.getElementById('net-status').style.borderColor = "var(--accent-red)";
+        document.getElementById('net-status').style.color = "var(--accent-red)";
+      }
+    }, 200);
+  </script>
+</body>
+</html>
